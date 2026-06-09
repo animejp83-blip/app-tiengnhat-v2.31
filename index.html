@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Học Cùng Tôi V2.37 · Web học tiếng Nhật</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Noto+Serif+JP:wght@500;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-L973BJMN1G"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-L973BJMN1G');
+  </script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="theme-sepia">
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="logo" data-jump="home">
+        <span class="logo-jp">Học Cùng Tôi V2.37</span>
+        <span class="logo-vn">Web học tiếng Nhật chuyên sâu</span>
+      </div>
+      <nav class="tab-nav" role="tablist">
+        <button class="tab-btn active" data-tab="home">🏠 Home</button>
+        <button class="tab-btn" data-tab="library">📚 Library</button>
+        <button class="tab-btn" data-tab="reading">📖 Reading</button>
+        <button class="tab-btn" data-tab="analyze">🔍 Analyze</button>
+        <button class="tab-btn" data-tab="speaking">👄 Speaking</button>
+        <button class="tab-btn" data-tab="review">⭐ Review</button>
+        <button class="tab-btn" data-tab="quiz">🧠 Quiz</button>
+      </nav>
+      <!-- Thanh chọn 4 màu nền dịu mắt chống mỏi ban đêm -->
+      <div class="theme-selector" title="Chọn màu nền dịu mắt">
+        <div class="theme-dot dot-sepia active" data-theme="sepia" title="Màu trà sữa dịu ngọt"></div>
+        <div class="theme-dot dot-mint" data-theme="mint" title="Xanh bạc hà tươi mát"></div>
+        <div class="theme-dot dot-mist" data-theme="mist" title="Xám sương mù bảo vệ mắt"></div>
+        <div class="theme-dot dot-dark" data-theme="dark" title="Chế độ ban đêm tối ưu"></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <!-- HOME TAB -->
+    <section id="tab-home" class="tab-panel active">
+      <div class="hero-card">
+        <div>
+          <p class="eyebrow">Học nhẹ mỗi ngày</p>
+          <h1>Ôn tiếng Nhật kiểu Anki + Quizlet + Kindle</h1>
+          <p class="hero-desc">Mở app lên là biết hôm nay cần ôn gì. Dữ liệu lưu local trên máy, không cần server.</p>
+          <div class="hero-actions">
+            <button class="btn btn-primary" id="btn-start-today">▶ Bắt đầu ôn hôm nay</button>
+            <button class="btn btn-outline" data-go-tab="reading">＋ Nạp bài mới</button>
+          </div>
+        </div>
+        <div class="today-card">
+          <div class="today-title">🔥 Hôm nay cần ôn</div>
+          <div class="today-total" id="home-due-total">0</div>
+          <div class="today-breakdown">
+            <span>🟦 Từ vựng: <b id="home-due-vocab">0</b></span>
+            <span>🟥 Ngữ pháp: <b id="home-due-grammar">0</b></span>
+          </div>
+        </div>
+      </div>
+      <div class="metric-grid">
+        <div class="metric-card"><span>📚 Tổng bài</span><strong id="stat-readings-home">0</strong></div>
+        <div class="metric-card"><span>🟦 Từ vựng</span><strong id="stat-vocab-home">0</strong></div>
+        <div class="metric-card"><span>🟥 Ngữ pháp</span><strong id="stat-grammar-home">0</strong></div>
+        <div class="metric-card"><span>🔥 Streak</span><strong id="stat-streak-home">0 ngày</strong></div>
+      </div>
+      <div class="quick-grid">
+        <button class="quick-card" data-go-tab="review"><b>⭐ Review</b><span>Xem những mục đã đánh dấu</span></button>
+        <button class="quick-card" data-quiz="current-reading"><b>⚡ Quiz bài hiện tại</b><span>Dán bài mới xong là học ngay</span></button>
+        <button class="quick-card" data-quiz="jlpt-grammar"><b>JLPT Grammar</b><span>Chọn mẫu ngữ pháp theo câu ví dụ</span></button>
+      </div>
+
+      <details class="home-fold-panel">
+        <summary>📊 Stats</summary>
+        <div class="metric-grid big">
+          <div class="metric-card"><span>Tỷ lệ đúng gần nhất</span><strong id="stat-accuracy">0%</strong></div>
+          <div class="metric-card"><span>Mục đã nhớ</span><strong id="stat-known">0</strong></div>
+          <div class="metric-card"><span>Đang ôn</span><strong id="stat-learning">0</strong></div>
+          <div class="metric-card"><span>Đã đánh dấu ⭐</span><strong id="stat-starred">0</strong></div>
+        </div>
+        <div class="stats-panel"><h3>7 ngày gần nhất</h3><div id="week-bars" class="week-bars"></div></div>
+      </details>
+
+      <details class="home-fold-panel">
+        <summary>⚙️ Settings</summary>
+        <div class="settings-card">
+          <h3>Import / Export</h3>
+          <textarea id="import-json" rows="8" placeholder="Dán JSON backup vào đây để import..."></textarea>
+          <div class="toolbar"><button class="btn btn-primary" id="btn-import-data">⬆ Import</button><button class="btn btn-outline" id="btn-export-data-2">⬇ Export</button><button class="btn btn-ghost danger" id="btn-reset-all">🗑 Xóa toàn bộ dữ liệu</button></div>
+        </div>
+      </details>
+    </section>
+
+    <!-- LIBRARY TAB -->
+    <section id="tab-library" class="tab-panel">
+      <div class="panel-header row-between">
+        <div><h2>📚 Kho bài đọc</h2><p class="panel-desc">Lưu nhiều bài đọc, mở lại từng bài, ôn theo bài hoặc gom tất cả.</p></div>
+        <div class="toolbar"><button class="btn btn-outline" id="btn-export-data">⬇ Export JSON</button><button class="btn btn-primary" data-go-tab="reading">＋ Thêm bài</button></div>
+      </div>
+      <div class="library-grid" id="library-list"></div>
+    </section>
+
+    <!-- READING TAB -->
+    <section id="tab-reading" class="tab-panel">
+      <div class="panel-header row-between">
+        <div><h2>📖 Reading</h2><p class="panel-desc">Đọc bài, bật/tắt furigana, nghe bằng giọng máy, click nhanh để chuyển sang Review.</p></div>
+        <div class="toolbar floating-tools">
+          <button class="btn btn-outline btn-sm" id="btn-toggle-furigana">👁 Furigana</button>
+          <button class="btn btn-outline btn-sm" id="btn-read-aloud">🔊 Nghe</button>
+          <button class="btn btn-outline btn-sm" id="btn-stop-audio">⏹ Dừng</button>
+          <select class="voice-select" id="voice-select" title="Chọn giọng đọc tiếng Nhật"><option>Đang tải giọng...</option></select>
+          <button class="btn btn-primary btn-sm" id="btn-save-current-reading">💾 Lưu</button>
+        </div>
+      </div>
+      <div class="reading-layout-v2">
+        <article class="reading-display" id="reading-display"><div class="empty-state"><span>文</span><p>Chưa có bài đọc. Hãy nạp JSON ở khung bên phải.</p></div></article>
+        <aside class="import-panel">
+          <details open>
+            <summary>1. Dán tiếng Nhật gốc</summary>
+            <textarea id="reading-raw" rows="5" placeholder="Dán văn bản tiếng Nhật gốc vào đây..."></textarea>
+            <button class="btn btn-primary btn-full" id="btn-gen-prompt">✨ Sinh prompt cho AI</button>
+          </details>
+          <details>
+            <summary>2. Copy prompt bài đọc</summary>
+            <div class="prompt-box" id="generated-prompt">Prompt bài đọc sẽ hiện ở đây.</div>
+            <button class="btn btn-outline btn-full" id="btn-copy-prompt">📋 Copy prompt</button>
+          </details>
+          <details open>
+            <summary>3. Dán JSON bài đọc từ AI</summary>
+            <input id="reading-title" placeholder="Tên bài đọc, ví dụ: Bài 001" />
+            <textarea id="reading-ai-output" rows="8" placeholder='Dán JSON: {"paragraphs":[], "sentenceTranslations":[], "vocabList":[], "grammarList":[]}'></textarea>
+            <button class="btn btn-primary btn-green btn-full" id="btn-parse-reading">⚡ Nạp vào Library</button>
+            <button class="btn btn-outline btn-full" id="btn-parse-and-quiz">🧠 Nạp xong Quiz ngay</button>
+            <div class="form-error" id="reading-parse-error"></div>
+          </details>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ANALYZE TAB -->
+    <section id="tab-analyze" class="tab-panel">
+      <div class="panel-header row-between">
+        <div>
+          <h2>🔍 Analyze</h2>
+          <p class="panel-desc">Bản dịch từng câu, giữ thật gọn: một câu tiếng Nhật, ngay dưới là một câu tiếng Việt.</p>
+        </div>
+        <div class="toolbar">
+          <button class="btn btn-outline btn-sm" data-go-tab="reading">← Quay lại Reading</button>
+        </div>
+      </div>
+      <div class="analyze-simple-card">
+        <div id="analyze-simple-list" class="analyze-simple-list">
+          <div class="empty-panel">Chưa có dữ liệu dịch từng câu.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SPEAKING TAB -->
+    <section id="tab-speaking" class="tab-panel">
+      <div class="panel-header row-between">
+        <div>
+          <h2>👄 Speaking Business Conversation</h2>
+          <p class="panel-desc">Luyện thoại lịch sự nơi công sở (です/ます) từ 6–10 câu ngắn tự nhiên. Nhấp vào để nghe giọng đọc máy.</p>
+        </div>
+        <div class="toolbar">
+          <button class="btn btn-outline btn-sm" id="btn-speak-toggle-furi">👁 Furigana</button>
+          <button class="btn btn-outline btn-sm" id="btn-speak-toggle-vi">🇻🇳 Nghĩa tiếng Việt</button>
+          <button class="btn btn-outline btn-sm" id="btn-speak-stop-audio">⏹ Dừng</button>
+          <select class="voice-select" id="speak-voice-select" title="Chọn giọng đọc tiếng Nhật"><option>Đang tải giọng...</option></select>
+        </div>
+      </div>
+      <div class="reading-layout-v2">
+        <div class="speaking-card-panel">
+          <div id="speaking-conversation-list" class="chat-viewport">
+            <div class="empty-panel">Bài này chưa có hội thoại luyện nói công sở. Hãy dùng khung bên phải để nạp dữ liệu hội thoại riêng.</div>
+          </div>
+        </div>
+        <aside class="import-panel" style="width: 340px;">
+          <div class="aside-box speaking-import-panel">
+            <h3>🛠 Nạp hội thoại công sở riêng</h3>
+            <details open>
+              <summary>1. Sinh Prompt Hội thoại</summary>
+              <button class="btn btn-primary btn-full" id="btn-gen-speak-prompt">💥 Sinh Prompt Hội thoại</button>
+            </details>
+            <details>
+              <summary>2. Copy Prompt</summary>
+              <div class="prompt-box" id="generated-speak-prompt">Prompt hội thoại lịch sự sẽ hiển thị ở đây...</div>
+              <button class="btn btn-outline btn-full" id="btn-copy-speak-prompt">📋 Copy Prompt</button>
+            </details>
+            <details open>
+              <summary>3. Dán JSON Hội thoại từ AI</summary>
+              <textarea id="speaking-ai-output" rows="6" placeholder='Dán riêng JSON {"conversation": [...]} đã dịch đuôi lịch sự です/ます vào đây...'></textarea>
+              <button class="btn btn-primary btn-green btn-full" id="btn-parse-speaking">⚡ Nạp Hội Thoại</button>
+              <div class="form-error" id="speaking-parse-error"></div>
+            </details>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- REVIEW TAB -->
+    <section id="tab-review" class="tab-panel">
+      <div class="panel-header row-between">
+        <div><h2>⭐ Review</h2><p class="panel-desc">Danh sách từ vựng và ngữ pháp. Bấm ⭐ để đưa vào ôn tập.</p></div>
+        <div class="toolbar"><button class="btn btn-primary" data-quiz="due-mixed">Ôn đến hạn 🔥</button><button class="btn btn-outline" data-quiz="hard-mixed">Ôn mục khó 🟡</button></div>
+      </div>
+      <div class="review-filters">
+        <button class="filter-btn active" data-filter="all">Tất cả</button>
+        <button class="filter-btn" data-filter="starred">⭐ Đánh dấu</button>
+        <button class="filter-btn" data-filter="due">🔥 Đến hạn</button>
+        <button class="filter-btn" data-filter="hard">🟡 Khó</button>
+      </div>
+      <div class="review-columns">
+        <div class="review-box"><div class="box-head"><h3>🟦 Từ vựng</h3><span id="vocab-count">0 từ</span></div><div id="vocab-list" class="item-list"></div></div>
+        <div class="review-box"><div class="box-head"><h3>🟥 Ngữ pháp</h3><span id="grammar-count">0 mẫu</span></div><div id="grammar-list" class="item-list"></div></div>
+      </div>
+    </section>
+
+    <!-- QUIZ TAB -->
+    <section id="tab-quiz" class="tab-panel">
+      <div class="panel-header"><h2>🧠 Quiz</h2><p class="panel-desc">Có các kiểu trắc nghiệm theo câu ví dụ và lịch lặp lại ngắt quãng.</p></div>
+      <div class="quiz-setup" id="quiz-setup">
+        <div class="quiz-settings">
+          <label for="quiz-question-limit">Số câu</label>
+          <select id="quiz-question-limit">
+            <option value="5">5 câu</option>
+            <option value="10" selected>10 câu</option>
+            <option value="20">20 câu</option>
+            <option value="all">Tất cả</option>
+          </select>
+        </div>
+        <div class="quiz-type-cards">
+          <button class="quiz-type-card" data-quiz="current-reading"><b>Bài hiện tại</b><small>Dán bài mới xong học ngay</small></button>
+          <button class="quiz-type-card" data-quiz="due-mixed"><b>Ôn đến hạn</b><small>Trắc nghiệm theo lịch SRS</small></button>
+          <button class="quiz-type-card" data-quiz="vocab-all"><b>Từ vựng</b><small>Tất cả từ trong kho</small></button>
+          <button class="quiz-type-card" data-quiz="grammar-all"><b>Ngữ pháp</b><small>Tất cả mẫu trong kho</small></button>
+          <button class="quiz-type-card" data-quiz="hard-mixed"><b>Ôn mục khó</b><small>Các mục sai nhiều / Lv thấp</small></button>
+          <button class="quiz-type-card" data-quiz="jlpt-grammar"><b>Grammar câu mẫu</b><small>Chọn mẫu đúng</small></button>
+        </div>
+        <div class="quiz-error" id="quiz-setup-error"></div>
+      </div>
+      <div class="quiz-arena" id="quiz-arena" style="display:none;">
+        <div class="quiz-progress-bar"><div id="quiz-progress-fill"></div></div>
+        <div class="quiz-meta"><span id="quiz-meta-type"></span><span id="quiz-question-counter"></span></div>
+        <div class="quiz-arena-tools"><button class="btn btn-outline btn-sm" id="btn-back-quiz-setup">← Đổi kiểu quiz</button></div>
+        <div class="quiz-card"><div class="quiz-question" id="quiz-question"></div><div class="quiz-options" id="quiz-options"></div><div class="quiz-feedback" id="quiz-feedback"></div><button class="btn btn-primary btn-full" id="btn-next-question">Câu tiếp theo →</button></div>
+      </div>
+      <div class="quiz-result" id="quiz-result" style="display:none;"><div class="result-circle"><span id="result-score">0%</span><small>điểm</small></div><div id="result-stats"></div><div id="quiz-wrong-list" class="wrong-list"></div><div class="toolbar center"><button class="btn btn-primary" id="btn-retry-quiz">🔄 Làm lại</button><button class="btn btn-outline" id="btn-change-quiz">↩ Đổi kiểu</button></div></div>
+    </section>
+
+  </main>
+
+  <div class="toast" id="toast"></div>
+  <script src="script.js"></script>
+</body>
+</html>
