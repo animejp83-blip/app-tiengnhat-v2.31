@@ -1,6 +1,6 @@
 const STORAGE_KEY = 'app_tiengnhat_v2_data';
 const THEME_KEY = 'app_tiengnhat_v2_theme';
-const APP_VERSION = '2.39';
+const APP_VERSION = '2.40';
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const addDays = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0,10); };
 const reviewSteps = [1, 3, 7, 14, 30, 60];
@@ -156,8 +156,8 @@ function updateSRS(id, correct){
 
 function renderAll(){ renderHome(); renderLibrary(); renderReading(); renderAnalyze(); renderSpeaking(); renderReview(); renderStats(); }
 function renderHome(){
-  const dueV = allVocab().filter(isDue).length, dueG = allGrammar().filter(isDue).length;
-  setText('home-due-total', dueV+dueG); setText('home-due-vocab', dueV); setText('home-due-grammar', dueG);
+  const savedCount = allItems().filter(x => x.starred).length;
+  setText('home-due-total', savedCount); setText('home-due-vocab', allVocab().filter(x => x.starred).length); setText('home-due-grammar', allGrammar().filter(x => x.starred).length);
   setText('stat-readings-home', state.readings.length); setText('stat-vocab-home', allVocab().length); setText('stat-grammar-home', allGrammar().length); setText('stat-streak-home', `${state.stats.streak||0} ngày`);
 }
 function setText(id, val){ const el=document.getElementById(id); if(el) el.textContent=val; }
@@ -309,25 +309,21 @@ function collapseSpeakingImportAfterSuccess(){
 }
 
 function renderReview(){
-  const vf = filterItems(allVocab()); const gf = filterItems(allGrammar());
+  const vf = allVocab().filter(x => x.starred);
+  const gf = allGrammar().filter(x => x.starred);
   setText('vocab-count', `${vf.length} từ`); setText('grammar-count', `${gf.length} mẫu`);
-  document.getElementById('vocab-list').innerHTML = vf.length ? vf.map(itemCard).join('') : '<div class="empty-panel">Không có từ phù hợp bộ lọc.</div>';
-  document.getElementById('grammar-list').innerHTML = gf.length ? gf.map(itemCard).join('') : '<div class="empty-panel">Không có ngữ pháp phù hợp bộ lọc.</div>';
+  document.getElementById('vocab-list').innerHTML = vf.length ? vf.map(itemCard).join('') : '<div class="empty-panel">Chưa lưu từ nào. Vào Reading hoặc Library, bấm ⭐ vào từ muốn nhớ.</div>';
+  document.getElementById('grammar-list').innerHTML = gf.length ? gf.map(itemCard).join('') : '<div class="empty-panel">Chưa lưu ngữ pháp nào. Bấm ⭐ vào mẫu muốn ôn lại.</div>';
 }
-function filterItems(list){
-  if(state.filter==='starred') return list.filter(x=>x.starred);
-  if(state.filter==='due') return list.filter(isDue);
-  if(state.filter==='hard') return list.filter(isHard);
-  return list;
-}
+function filterItems(list){ return list; }
 function itemCard(x){
   const title = x.type==='vocab' ? x.kanji : x.pattern;
   const read = x.type==='vocab' ? x.hira : x.reading;
-  const badge = isDue(x) ? '<span class="due-badge">đến hạn</span>' : `<span class="level-badge">Lv.${x.level||0}</span>`;
-  return `<div class="review-item" onclick="toggleDetail(event,'${x.id}')">
+  const exampleLabel = x.type==='vocab' ? '例' : 'Ví dụ';
+  return `<div class="review-item simple-card" onclick="toggleDetail(event,'${x.id}')">
     <button class="star-btn ${x.starred?'on':''}" onclick="toggleStar(event,'${x.id}')">${x.starred?'⭐':'☆'}</button>
-    <div class="item-main"><div class="item-title">${escHtml(title)}</div><div class="item-reading">${escHtml(read)}</div><div class="item-meaning">${escHtml(x.meaning)}</div><div class="item-example" id="detail-${x.id}">例: ${escHtml(x.example || 'Chưa có ví dụ')}<br><small>${escHtml(x.readingTitle||'')}</small></div></div>
-    <div class="item-side">${badge}<button class="menu-btn" onclick="deleteItem(event,'${x.id}')">✕</button></div>
+    <div class="item-main"><div class="item-title">${escHtml(title)}</div><div class="item-reading">${escHtml(read)}</div><div class="item-meaning">${escHtml(x.meaning)}</div><div class="item-example" id="detail-${x.id}">${exampleLabel}: ${escHtml(x.example || 'Chưa có ví dụ')}<br><small>${escHtml(x.readingTitle||'')}</small></div></div>
+    <div class="item-side"><button class="menu-btn" title="Xóa mục này" onclick="deleteItem(event,'${x.id}')">✕</button></div>
   </div>`;
 }
 function renderStats(){
@@ -417,8 +413,9 @@ function importReadingFromParsed(parsed, title, rawText='', opts={}){
   
   state.readings.unshift(r); state.currentReadingId=r.id; saveData(); renderAll(); 
   collapseReadingImportAfterSuccess();
-  toast(`Đã nạp bài đọc thành công! Hãy sang tab Speaking để sinh tiếp hội thoại.`);
-  goTab('reading'); return r;
+  toast(opts.quizNow ? 'Đã nạp bài. Bắt đầu quiz ngay!' : 'Đã nạp bài đọc thành công! Hãy sang tab Speaking để sinh tiếp hội thoại.');
+  if(opts.quizNow) startQuiz('current-reading'); else goTab('reading');
+  return r;
 }
 
 function importSpeakingConversation(parsed) {
@@ -438,7 +435,7 @@ function importSpeakingConversation(parsed) {
 }
 
 function getQuizLimit(){ const el = document.getElementById('quiz-question-limit'); const val = el ? el.value : '10'; return val === 'all' ? Infinity : Math.max(1, Number(val || 10)); }
-function quizModeLabel(mode){ return ({ 'current-reading':'Bài hiện tại','due-mixed':'Ôn đến hạn','hard-mixed':'Ôn mục khó','vocab-all':'Từ vựng','grammar-all':'Ngữ pháp','starred-mixed':'Ôn tất cả ⭐','jlpt-grammar':'JLPT Grammar' })[mode] || mode; }
+function quizModeLabel(mode){ return ({ 'current-reading':'Bài hiện tại','starred-mixed':'Từ đã lưu ⭐','random-mixed':'Ngẫu nhiên' })[mode] || mode; }
 function buildChoiceQuestion(x, vocabPool, grammarPool){
   const isVocab = x.type === 'vocab'; const title = isVocab ? x.kanji : x.pattern;
   const sub = isVocab ? `(${x.hira || ''}) Nghĩa đúng là gì?` : (x.example || 'Ý nghĩa của mẫu ngữ pháp này là gì?');
@@ -452,18 +449,8 @@ function buildQuestions(mode, readingId=null){
     const r = readingId ? state.readings.find(x=>x.id===readingId) : currentReading();
     items=[...(r?.vocabList||[]).map(x=>({...x,type:'vocab'})), ...(r?.grammarList||[]).map(x=>({...x,type:'grammar'}))];
   }
-  else if(mode==='due-mixed') items=allItems().filter(isDue);
-  else if(mode==='hard-mixed') items=allItems().filter(isHard);
-  else if(mode==='vocab-all') items=v;
-  else if(mode==='grammar-all') items=g;
   else if(mode==='starred-mixed') items=allItems().filter(x=>x.starred);
-  else if(mode==='jlpt-grammar'){
-    const pool=g.filter(x=>x.pattern && x.example); if(pool.length<1) return [];
-    return sample(pool, Math.min(limit, pool.length)).map(x=>({
-      kind:'choice', itemId:x.id, type:'grammar', question:x.example, sub:'Câu này đang dùng mẫu ngữ pháp nào?', correct:x.pattern,
-      options:shuffle([...new Set([x.pattern, ...sample(pool.filter(y=>y.id!==x.id).map(y=>y.pattern),3)])]), explain:x.meaning
-    }));
-  }
+  else if(mode==='random-mixed') items=allItems();
   if(items.length<1) return [];
   return sample(items, Math.min(limit, items.length)).map(x => buildChoiceQuestion(x, v, g)).filter(Boolean);
 }
@@ -475,7 +462,7 @@ function startQuiz(mode, readingId=null){
   document.getElementById('quiz-setup').style.display='none'; document.getElementById('quiz-result').style.display='none'; document.getElementById('quiz-arena').style.display='block';
   goTab('quiz'); renderQuestion();
 }
-window.quizByReading = (id) => startQuiz('reading', id);
+window.quizByReading = (id) => { state.currentReadingId = id; saveData(); startQuiz('current-reading'); };
 function renderQuestion(){
   const q=state.quiz, item=q.questions[q.current];
   document.getElementById('quiz-progress-fill').style.width = `${(q.current + 1)/q.questions.length*100}%`;
@@ -490,7 +477,7 @@ function answerChoice(idx){
   document.querySelectorAll('.quiz-option').forEach((b,i)=>{ b.disabled=true; if(item.options[i]===item.correct) b.classList.add('correct'); if(i===idx && !ok) b.classList.add('wrong'); });
   updateSRS(item.itemId, ok); showFeedback(ok, ok?'✅ Chính xác!':`❌ Đáp án đúng: ${item.correct}`);
 }
-function showFeedback(ok,msg){ const fb=document.getElementById('quiz-feedback'); fb.className=`quiz-feedback ${ok?'correct-fb':'wrong-fb'}`; fb.textContent=msg; fb.style.display='block'; document.getElementById('btn-next-question').style.display='block'; saveData(); renderAll(); }
+function showFeedback(ok,msg){ const fb=document.getElementById('quiz-feedback'); fb.className=`quiz-feedback ${ok?'correct-fb':'wrong-fb'}`; fb.textContent=msg; fb.style.display='block'; document.getElementById('btn-next-question').style.display='block'; saveData(); renderHome(); renderStats(); }
 function finishQuiz(){
   const q=state.quiz; document.getElementById('quiz-arena').style.display='none'; document.getElementById('quiz-result').style.display='block';
   const pct=Math.round(q.score/q.questions.length*100); setText('result-score', `${pct}%`);
@@ -503,10 +490,9 @@ document.addEventListener('DOMContentLoaded', () => {
   loadData(); renderAll(); restoreLastTab();
   document.querySelectorAll('.tab-btn').forEach(b=>b.onclick=()=>goTab(b.dataset.tab));
   document.querySelectorAll('[data-go-tab]').forEach(b=>b.onclick=()=>goTab(b.dataset.goTab));
+  document.querySelectorAll('[data-quiz]').forEach(b=>b.onclick=()=>startQuiz(b.dataset.quiz));
   document.querySelector('.logo').onclick=()=>goTab('home');
-  document.getElementById('btn-start-today').onclick=()=>startQuiz('due-mixed');
-  document.querySelectorAll('.filter-btn').forEach(b=>b.onclick=()=>{ document.querySelectorAll('.filter-btn').forEach(x=>x.classList.remove('active')); b.classList.add('active'); state.filter=b.dataset.filter; renderReview(); });
-  
+  document.getElementById('btn-start-today').onclick=()=>startQuiz('random-mixed');
   // Xử lý đổi theme màu nền dịu mắt
   document.querySelectorAll('.theme-dot').forEach(dot => {
     dot.onclick = () => setAppTheme(dot.dataset.theme);

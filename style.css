@@ -272,3 +272,14 @@ body.theme-dark input, body.theme-dark textarea, body.theme-dark select { backgr
   min-height:34px;
 }
 @media(max-width:560px){.voice-select{width:100%;max-width:100%;}}
+
+
+/* V2.40 tối giản Review + Quiz */
+.simple-review .item-list{max-height:none;}
+.review-item.simple-card{grid-template-columns:42px 1fr 42px;}
+.review-item.simple-card .item-side{align-items:center;}
+.quiz-simple-panel{max-width:620px;margin:0 auto;background:var(--surface);border:1px solid var(--border);border-radius:22px;padding:24px;box-shadow:var(--shadow);}
+.quiz-simple-panel .quiz-settings{width:100%;justify-content:space-between;margin-bottom:18px;box-shadow:none;}
+.quiz-simple-actions{display:grid;grid-template-columns:1fr;gap:12px;}
+.btn-big{width:100%;font-size:1.05rem;padding:16px 18px;text-align:center;}
+@media(max-width:560px){.review-item.simple-card{grid-template-columns:36px 1fr 36px}.quiz-simple-panel{padding:18px}}

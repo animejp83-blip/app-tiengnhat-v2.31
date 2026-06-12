@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Học Cùng Tôi V2.37 · Web học tiếng Nhật</title>
+  <title>Học Cùng Tôi V2.40 · Web học tiếng Nhật</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Noto+Serif+JP:wght@500;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -21,7 +21,7 @@
   <header class="app-header">
     <div class="header-inner">
       <div class="logo" data-jump="home">
-        <span class="logo-jp">Học Cùng Tôi V2.37</span>
+        <span class="logo-jp">Học Cùng Tôi V2.40</span>
         <span class="logo-vn">Web học tiếng Nhật chuyên sâu</span>
       </div>
       <nav class="tab-nav" role="tablist">
@@ -30,7 +30,7 @@
         <button class="tab-btn" data-tab="reading">📖 Reading</button>
         <button class="tab-btn" data-tab="analyze">🔍 Analyze</button>
         <button class="tab-btn" data-tab="speaking">👄 Speaking</button>
-        <button class="tab-btn" data-tab="review">⭐ Review</button>
+        <button class="tab-btn" data-tab="review">📌 Đã lưu</button>
         <button class="tab-btn" data-tab="quiz">🧠 Quiz</button>
       </nav>
       <!-- Thanh chọn 4 màu nền dịu mắt chống mỏi ban đêm -->
@@ -52,16 +52,15 @@
           <h1>Ôn tiếng Nhật kiểu Anki + Quizlet + Kindle</h1>
           <p class="hero-desc">Mở app lên là biết hôm nay cần ôn gì. Dữ liệu lưu local trên máy, không cần server.</p>
           <div class="hero-actions">
-            <button class="btn btn-primary" id="btn-start-today">▶ Bắt đầu ôn hôm nay</button>
+            <button class="btn btn-primary" id="btn-start-today">▶ Quiz nhanh</button>
             <button class="btn btn-outline" data-go-tab="reading">＋ Nạp bài mới</button>
           </div>
         </div>
         <div class="today-card">
-          <div class="today-title">🔥 Hôm nay cần ôn</div>
+          <div class="today-title">📚 Mục đã lưu</div>
           <div class="today-total" id="home-due-total">0</div>
           <div class="today-breakdown">
-            <span>🟦 Từ vựng: <b id="home-due-vocab">0</b></span>
-            <span>🟥 Ngữ pháp: <b id="home-due-grammar">0</b></span>
+            <span>⭐ Đánh dấu để ôn lại</span>
           </div>
         </div>
       </div>
@@ -72,9 +71,9 @@
         <div class="metric-card"><span>🔥 Streak</span><strong id="stat-streak-home">0 ngày</strong></div>
       </div>
       <div class="quick-grid">
-        <button class="quick-card" data-go-tab="review"><b>⭐ Review</b><span>Xem những mục đã đánh dấu</span></button>
-        <button class="quick-card" data-quiz="current-reading"><b>⚡ Quiz bài hiện tại</b><span>Dán bài mới xong là học ngay</span></button>
-        <button class="quick-card" data-quiz="jlpt-grammar"><b>JLPT Grammar</b><span>Chọn mẫu ngữ pháp theo câu ví dụ</span></button>
+        <button class="quick-card" data-go-tab="review"><b>📌 Từ đã lưu</b><span>Xem từ vựng và ngữ pháp đã đánh dấu</span></button>
+        <button class="quick-card" data-quiz="current-reading"><b>⚡ Quiz bài hiện tại</b><span>Học xong làm ngay</span></button>
+        <button class="quick-card" data-quiz="random-mixed"><b>🎲 Quiz ngẫu nhiên</b><span>Trộn toàn bộ dữ liệu</span></button>
       </div>
 
       <details class="home-fold-panel">
@@ -208,41 +207,37 @@
     <!-- REVIEW TAB -->
     <section id="tab-review" class="tab-panel">
       <div class="panel-header row-between">
-        <div><h2>⭐ Review</h2><p class="panel-desc">Danh sách từ vựng và ngữ pháp. Bấm ⭐ để đưa vào ôn tập.</p></div>
-        <div class="toolbar"><button class="btn btn-primary" data-quiz="due-mixed">Ôn đến hạn 🔥</button><button class="btn btn-outline" data-quiz="hard-mixed">Ôn mục khó 🟡</button></div>
+        <div><h2>📌 Từ đã lưu</h2><p class="panel-desc">Chỉ hiện những mục đã bấm ⭐. Không level, không lịch ôn phức tạp.</p></div>
+        <div class="toolbar">
+          <button class="btn btn-primary" data-quiz="starred-mixed">Quiz ⭐</button>
+          <button class="btn btn-outline" data-quiz="current-reading">Quiz bài hiện tại</button>
+        </div>
       </div>
-      <div class="review-filters">
-        <button class="filter-btn active" data-filter="all">Tất cả</button>
-        <button class="filter-btn" data-filter="starred">⭐ Đánh dấu</button>
-        <button class="filter-btn" data-filter="due">🔥 Đến hạn</button>
-        <button class="filter-btn" data-filter="hard">🟡 Khó</button>
-      </div>
-      <div class="review-columns">
-        <div class="review-box"><div class="box-head"><h3>🟦 Từ vựng</h3><span id="vocab-count">0 từ</span></div><div id="vocab-list" class="item-list"></div></div>
-        <div class="review-box"><div class="box-head"><h3>🟥 Ngữ pháp</h3><span id="grammar-count">0 mẫu</span></div><div id="grammar-list" class="item-list"></div></div>
+      <div class="review-columns simple-review">
+        <div class="review-box"><div class="box-head"><h3>🟦 Từ vựng đã lưu</h3><span id="vocab-count">0 từ</span></div><div id="vocab-list" class="item-list"></div></div>
+        <div class="review-box"><div class="box-head"><h3>🟥 Ngữ pháp đã lưu</h3><span id="grammar-count">0 mẫu</span></div><div id="grammar-list" class="item-list"></div></div>
       </div>
     </section>
 
     <!-- QUIZ TAB -->
     <section id="tab-quiz" class="tab-panel">
-      <div class="panel-header"><h2>🧠 Quiz</h2><p class="panel-desc">Có các kiểu trắc nghiệm theo câu ví dụ và lịch lặp lại ngắt quãng.</p></div>
+      <div class="panel-header"><h2>🧠 Quiz</h2><p class="panel-desc">Chọn nhanh, làm nhanh. Chỉ giữ 3 kiểu học dễ hiểu.</p></div>
       <div class="quiz-setup" id="quiz-setup">
-        <div class="quiz-settings">
-          <label for="quiz-question-limit">Số câu</label>
-          <select id="quiz-question-limit">
-            <option value="5">5 câu</option>
-            <option value="10" selected>10 câu</option>
-            <option value="20">20 câu</option>
-            <option value="all">Tất cả</option>
-          </select>
-        </div>
-        <div class="quiz-type-cards">
-          <button class="quiz-type-card" data-quiz="current-reading"><b>Bài hiện tại</b><small>Dán bài mới xong học ngay</small></button>
-          <button class="quiz-type-card" data-quiz="due-mixed"><b>Ôn đến hạn</b><small>Trắc nghiệm theo lịch SRS</small></button>
-          <button class="quiz-type-card" data-quiz="vocab-all"><b>Từ vựng</b><small>Tất cả từ trong kho</small></button>
-          <button class="quiz-type-card" data-quiz="grammar-all"><b>Ngữ pháp</b><small>Tất cả mẫu trong kho</small></button>
-          <button class="quiz-type-card" data-quiz="hard-mixed"><b>Ôn mục khó</b><small>Các mục sai nhiều / Lv thấp</small></button>
-          <button class="quiz-type-card" data-quiz="jlpt-grammar"><b>Grammar câu mẫu</b><small>Chọn mẫu đúng</small></button>
+        <div class="quiz-simple-panel">
+          <div class="quiz-settings">
+            <label for="quiz-question-limit">Số câu</label>
+            <select id="quiz-question-limit">
+              <option value="5">5 câu</option>
+              <option value="10" selected>10 câu</option>
+              <option value="20">20 câu</option>
+              <option value="all">Tất cả</option>
+            </select>
+          </div>
+          <div class="quiz-simple-actions">
+            <button class="btn btn-primary btn-big" data-quiz="current-reading">⚡ Quiz bài hiện tại</button>
+            <button class="btn btn-outline btn-big" data-quiz="starred-mixed">⭐ Quiz từ đã lưu</button>
+            <button class="btn btn-outline btn-big" data-quiz="random-mixed">🎲 Quiz ngẫu nhiên</button>
+          </div>
         </div>
         <div class="quiz-error" id="quiz-setup-error"></div>
       </div>
