@@ -3,19 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Học cùng tôi v2.42 - Song ngữ & nghe từ vựng</title>
+    <title>Học cùng tôi v2.45 - Share Room</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="container">
     <h1>📖 Học cùng tôi</h1>
-    <p class="subtitle">Song ngữ từng câu – Nhóm từ vựng – Quiz tự lưu sai – Chọn giọng đọc</p>
+    <p class="subtitle">Song ngữ – Nghe bài – Quiz tự lưu sai – Share Room không đăng nhập</p>
 
     <div class="main-tabs">
         <button class="main-tab active" data-tab="prompt">1. Nhập liệu & Prompt</button>
         <button class="main-tab" data-tab="json">2. Dán JSON & Học</button>
         <button class="main-tab" data-tab="learn" id="tabLearn">3. Học tập</button>
         <button class="main-tab" data-tab="saved">4. Bài đã lưu</button>
+        <button class="main-tab" data-tab="share">5. Chia sẻ</button>
     </div>
 
     <!-- Tab 1: Nhập liệu & Prompt -->
@@ -97,7 +98,7 @@
                 <button class="btn btn-primary" id="btnSpeakArticle">▶ Đọc cả bài đọc</button>
                 <button class="btn btn-outline" id="btnPauseArticle">⏸ Tạm dừng / đọc tiếp</button>
                 <button class="btn btn-outline" id="btnStopArticle">⏹ Dừng</button>
-                <span class="toolbar-note">Dùng giọng và tốc độ đang chọn ở thanh Giọng đọc</span>
+                <span class="toolbar-note">Dùng giọng và tốc độ đang chọn ở thanh Giọng đọc.</span>
             </div>
             <div class="article-content" id="articleContent"></div>
         </div>
@@ -169,6 +170,41 @@
         <h3>📚 Bài học đã lưu</h3>
         <div class="saved-list" id="savedList"></div>
         <div class="empty" id="savedEmpty">Chưa có bài nào được lưu.</div>
+    </div>
+
+    <!-- Tab 5: Chia sẻ online -->
+    <div class="main-panel" id="panel-share">
+        <div class="card-box share-warning">
+            <h3>☁ Share Room</h3>
+            <p>Lưu bài online để mở ở máy khác bằng <strong>room + PIN</strong>. Ai biết room và PIN đều có thể xem bài.</p>
+            <p class="warning-text">⚠️ Chỉ lưu bài báo / bài học. Không lưu tài liệu công ty, bản vẽ, thông tin khách hàng hoặc dữ liệu cá nhân.</p>
+        </div>
+
+        <div class="share-layout">
+            <div class="card-box share-card">
+                <h3>🔐 Phòng học của tôi</h3>
+                <label>Room</label>
+                <input type="text" id="shareRoom" placeholder="vd: animejp83" autocomplete="off">
+                <label>PIN 4–8 số/ký tự</label>
+                <input type="password" id="sharePin" placeholder="vd: 1234" autocomplete="new-password">
+                <div class="share-actions">
+                    <button class="btn btn-primary" id="btnSaveOnline">☁ Lưu bài hiện tại online</button>
+                    <button class="btn btn-outline" id="btnLoadOnlineList">📚 Mở danh sách online</button>
+                </div>
+                <div class="share-link-box" id="shareRoomLinkBox" style="display:none;">
+                    <div class="small-label">Link phòng học</div>
+                    <div class="share-url" id="shareRoomUrl"></div>
+                    <button class="btn btn-small btn-outline" id="btnCopyRoomLink">📋 Copy link phòng</button>
+                </div>
+            </div>
+
+            <div class="card-box share-card">
+                <h3>📚 Bài online</h3>
+                <div id="onlineStatus" class="online-status">Nhập room + PIN rồi bấm “Mở danh sách online”.</div>
+                <div class="online-list" id="onlineList"></div>
+                <div class="empty" id="onlineEmpty" style="display:none;">Chưa có bài online trong room này.</div>
+            </div>
+        </div>
     </div>
 </div>
 

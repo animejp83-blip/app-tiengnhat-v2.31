@@ -12,6 +12,7 @@
     let starredMap = JSON.parse(localStorage.getItem('jp_starred_map') || '{}');
     let selectedVoiceURI = localStorage.getItem('jp_selected_voice_uri') || 'auto';
     let selectedVoiceRate = Number(localStorage.getItem('jp_voice_rate') || '0.9');
+    let shareRoomConfig = JSON.parse(localStorage.getItem('jp_share_room_config') || '{}');
 
     function saveStarredMap() { localStorage.setItem('jp_starred_map', JSON.stringify(starredMap)); }
 
@@ -238,8 +239,206 @@
     document.getElementById('btnPauseArticle')?.addEventListener('click', toggleSpeechPause);
     document.getElementById('btnSpeakArticle')?.addEventListener('click', speakArticle);
     document.getElementById('btnSpeakAllVocab')?.addEventListener('click', () => {
-        const words = getFilteredVocab();
+        const words = getVocabInDisplayOrder(getFilteredVocab());
         speakVocabSequence(words);
+    });
+
+    function getShareRoomValue() {
+        const roomInput = document.getElementById('shareRoom');
+        const pinInput = document.getElementById('sharePin');
+        const room = String(roomInput?.value || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+        const pin = String(pinInput?.value || '').trim();
+        return { room, pin };
+    }
+
+    function saveShareRoomConfig(room) {
+        if (!room) return;
+        shareRoomConfig.room = room;
+        localStorage.setItem('jp_share_room_config', JSON.stringify(shareRoomConfig));
+    }
+
+    function showShareRoomLink(room) {
+        const box = document.getElementById('shareRoomLinkBox');
+        const urlEl = document.getElementById('shareRoomUrl');
+        if (!box || !urlEl || !room) return;
+        const url = `${location.origin}/room/${encodeURIComponent(room)}`;
+        urlEl.textContent = url;
+        box.style.display = 'block';
+    }
+
+    async function shareApi(action, payload = {}) {
+        const res = await fetch('/api/share', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action, ...payload })
+        });
+        let json = null;
+        try { json = await res.json(); } catch (e) { json = {}; }
+        if (!res.ok || json.ok === false) {
+            throw new Error(json.error || `Lỗi API ${res.status}`);
+        }
+        return json;
+    }
+
+    function setOnlineStatus(message, type = '') {
+        const el = document.getElementById('onlineStatus');
+        if (!el) return;
+        el.textContent = message;
+        el.className = `online-status ${type}`.trim();
+    }
+
+    function getLessonPayloadForShare() {
+        if (!appData || !appData.fullText || appData.title === 'Hướng dẫn sử dụng') return null;
+        const data = normalizeLessonData(appData);
+        return {
+            title: data.title || 'Bài học không tiêu đề',
+            fullText: data.fullText || '',
+            fullTranslation: data.fullTranslation || '',
+            sentenceTranslations: data.sentenceTranslations || [],
+            vocabulary: data.vocabulary || [],
+            grammar: data.grammar || []
+        };
+    }
+
+    async function saveCurrentArticleOnline() {
+        const { room, pin } = getShareRoomValue();
+        if (!room || !pin) { showToast('⚠️ Nhập room và PIN trước.'); return; }
+        if (pin.length < 4) { showToast('⚠️ PIN nên có ít nhất 4 ký tự.'); return; }
+        const lesson = getLessonPayloadForShare();
+        if (!lesson) { showToast('⚠️ Chưa có bài học để lưu online.'); return; }
+        const size = new Blob([JSON.stringify(lesson)]).size;
+        if (size > 200 * 1024) {
+            alert('Bài này hơi lớn. Giới hạn hiện tại là 200KB để tránh đầy dữ liệu.');
+            return;
+        }
+        const ok = confirm('Bài này sẽ được lưu online. Ai biết room + PIN đều có thể xem.\n\nKhông lưu tài liệu công ty hoặc thông tin cá nhân. Tiếp tục?');
+        if (!ok) return;
+        const btn = document.getElementById('btnSaveOnline');
+        const oldText = btn?.textContent;
+        if (btn) { btn.disabled = true; btn.textContent = '⏳ Đang lưu...'; }
+        try {
+            const result = await shareApi('save', { room, pin, article: lesson });
+            saveShareRoomConfig(room);
+            showShareRoomLink(room);
+            showToast('✅ Đã lưu online.');
+            setOnlineStatus(`Đã lưu: ${lesson.title}`,'ok');
+            await loadOnlineList(false);
+            if (result.warning) alert(result.warning);
+        } catch (err) {
+            setOnlineStatus(err.message, 'error');
+            alert('Không lưu được online:\n' + err.message);
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = oldText || '☁ Lưu bài hiện tại online'; }
+        }
+    }
+
+    function renderOnlineList(items = []) {
+        const list = document.getElementById('onlineList');
+        const empty = document.getElementById('onlineEmpty');
+        if (!list || !empty) return;
+        if (!items.length) {
+            list.innerHTML = '';
+            empty.style.display = 'block';
+            return;
+        }
+        empty.style.display = 'none';
+        list.innerHTML = items.map((item) => {
+            const date = item.createdAt ? new Date(item.createdAt).toLocaleString('vi-VN') : '';
+            return `<div class="online-item">
+                <div class="online-main">
+                    <div class="online-title">${escapeHtml(item.title || 'Không tiêu đề')}</div>
+                    <div class="online-meta">${escapeHtml(date)} · ${Number(item.vocabCount || 0)} từ · ${Number(item.grammarCount || 0)} ngữ pháp</div>
+                </div>
+                <div class="online-actions">
+                    <button class="btn btn-small btn-primary online-open" data-id="${escapeAttr(item.id)}">📂 Mở</button>
+                    <button class="btn btn-small btn-outline online-delete" data-id="${escapeAttr(item.id)}">🗑 Xóa</button>
+                </div>
+            </div>`;
+        }).join('');
+        list.querySelectorAll('.online-open').forEach(btn => {
+            btn.addEventListener('click', () => openOnlineArticle(btn.dataset.id));
+        });
+        list.querySelectorAll('.online-delete').forEach(btn => {
+            btn.addEventListener('click', () => deleteOnlineArticle(btn.dataset.id));
+        });
+    }
+
+    async function loadOnlineList(showSuccess = true) {
+        const { room, pin } = getShareRoomValue();
+        if (!room || !pin) { showToast('⚠️ Nhập room và PIN trước.'); return; }
+        const btn = document.getElementById('btnLoadOnlineList');
+        const oldText = btn?.textContent;
+        if (btn) { btn.disabled = true; btn.textContent = '⏳ Đang tải...'; }
+        try {
+            const result = await shareApi('list', { room, pin });
+            saveShareRoomConfig(room);
+            showShareRoomLink(room);
+            renderOnlineList(result.items || []);
+            setOnlineStatus(`Room ${room}: ${result.items?.length || 0} bài online.`, 'ok');
+            if (showSuccess) showToast('✅ Đã tải danh sách online.');
+        } catch (err) {
+            renderOnlineList([]);
+            setOnlineStatus(err.message, 'error');
+            alert('Không mở được danh sách:\n' + err.message);
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = oldText || '📚 Mở danh sách online'; }
+        }
+    }
+
+    async function openOnlineArticle(id) {
+        const { room, pin } = getShareRoomValue();
+        if (!room || !pin || !id) return;
+        try {
+            const result = await shareApi('get', { room, pin, id });
+            if (!result.article) throw new Error('Không tìm thấy bài.');
+            loadFromJSON(result.article);
+            showToast('📂 Đã mở bài online.');
+        } catch (err) {
+            alert('Không mở được bài:\n' + err.message);
+        }
+    }
+
+    async function deleteOnlineArticle(id) {
+        const { room, pin } = getShareRoomValue();
+        if (!room || !pin || !id) return;
+        const ok = confirm('Xóa bài online này khỏi room?');
+        if (!ok) return;
+        try {
+            await shareApi('delete', { room, pin, id });
+            showToast('🗑 Đã xóa bài online.');
+            await loadOnlineList(false);
+        } catch (err) {
+            alert('Không xóa được bài:\n' + err.message);
+        }
+    }
+
+    function initShareRoomUI() {
+        const roomInput = document.getElementById('shareRoom');
+        const pinInput = document.getElementById('sharePin');
+        if (roomInput && !roomInput.value) roomInput.value = shareRoomConfig.room || '';
+        const pathMatch = location.pathname.match(/^\/room\/([a-zA-Z0-9_-]+)/);
+        if (pathMatch && roomInput) {
+            roomInput.value = pathMatch[1].toLowerCase();
+            switchMainTab('share');
+            showShareRoomLink(roomInput.value);
+            setOnlineStatus('Nhập PIN rồi bấm “Mở danh sách online”.');
+            setTimeout(() => pinInput?.focus(), 100);
+        } else if (roomInput?.value) {
+            showShareRoomLink(roomInput.value);
+        }
+    }
+
+    document.getElementById('btnSaveOnline')?.addEventListener('click', saveCurrentArticleOnline);
+    document.getElementById('btnLoadOnlineList')?.addEventListener('click', () => loadOnlineList(true));
+    document.getElementById('btnCopyRoomLink')?.addEventListener('click', () => {
+        const text = document.getElementById('shareRoomUrl')?.textContent || '';
+        if (!text) return;
+        navigator.clipboard.writeText(text).then(() => showToast('📋 Đã copy link phòng.'));
+    });
+    document.getElementById('shareRoom')?.addEventListener('input', (e) => {
+        const clean = String(e.target.value || '').toLowerCase().replace(/[^a-z0-9_-]/g, '');
+        if (e.target.value !== clean) e.target.value = clean;
+        if (clean) showShareRoomLink(clean);
     });
 
     function getEasyExample(wordObj, type = 'vocab') {
@@ -287,6 +486,7 @@
         if (activePanel) activePanel.classList.add('active');
         if (tabName === 'learn') switchSubTab('read');
         if (tabName === 'saved') renderSavedList();
+        if (tabName === 'share') initShareRoomUI();
     }
 
     function switchSubTab(subName) {
@@ -626,6 +826,11 @@ ${text}
             medium: items.filter(v => getImportanceKey(v) === 'medium'),
             low: items.filter(v => getImportanceKey(v) === 'low')
         };
+    }
+
+    function getVocabInDisplayOrder(items) {
+        const groups = groupVocabByImportance(items || []);
+        return [...groups.high, ...groups.medium, ...groups.low];
     }
 
     function renderVocabList() {
@@ -1069,6 +1274,7 @@ Hãy bắt đầu bằng cách:
 - Xem Bài dịch song ngữ từng câu
 - Chọn giọng đọc và nghe toàn bộ từ vựng bằng nút ▶
 - Lọc theo cấp độ JLPT hoặc chỉ xem từ đã đánh dấu sao ⭐
+- Lưu online bằng Share Room để mở ở máy khác
 
 Chúc bạn học tốt! 🎌`,
                 fullTranslation: '',
@@ -1084,5 +1290,6 @@ Chúc bạn học tốt! 🎌`,
     }
     
     initDefaultLearnPanel();
+    initShareRoomUI();
     renderSavedList();
 })();
