@@ -10,30 +10,46 @@
     
     // Starred map: lưu các từ cần ôn tập
     let starredMap = JSON.parse(localStorage.getItem('jp_starred_map') || '{}');
+    let selectedVoiceURI = localStorage.getItem('jp_selected_voice_uri') || 'auto';
+    let selectedVoiceRate = Number(localStorage.getItem('jp_voice_rate') || '0.9');
+
     function saveStarredMap() { localStorage.setItem('jp_starred_map', JSON.stringify(starredMap)); }
+
     function syncStarredToVocab() {
         for (let v of vocabList) {
             if (starredMap[v.word] !== undefined) v.starred = starredMap[v.word];
             else v.starred = false;
         }
     }
-    function toggleStar(word) {
-        const newState = !starredMap[word];
-        starredMap[word] = newState;
+
+    function setStar(word, state, options = {}) {
+        const key = String(word || '').trim();
+        if (!key) return;
+        const current = !!starredMap[key];
+        starredMap[key] = !!state;
         saveStarredMap();
-        const vocabItem = vocabList.find(v => v.word === word);
-        if (vocabItem) vocabItem.starred = newState;
-        // Cập nhật UI nếu đang ở các panel liên quan
+        const vocabItem = vocabList.find(v => v.word === key);
+        if (vocabItem) vocabItem.starred = !!state;
+        if (options.refresh !== false) refreshActiveStudyPanel();
+        if (!options.silent && current !== !!state) {
+            showToast(state ? '⭐ Đã thêm vào ôn tập' : '☆ Đã bỏ khỏi ôn tập');
+        }
+    }
+
+    function toggleStar(word) {
+        setStar(word, !starredMap[word]);
+    }
+
+    function refreshActiveStudyPanel() {
         const activeMain = document.querySelector('.main-panel.active');
         if (activeMain && activeMain.id === 'panel-learn') {
             const activeSub = document.querySelector('.sub-panel.active');
             if (activeSub) {
                 if (activeSub.id === 'sub-flashcard') updateFlashcardUI();
                 else if (activeSub.id === 'sub-vocab') renderVocabList();
-                else if (activeSub.id === 'sub-quiz') updateQuizUI();
+                else if (activeSub.id === 'sub-quiz') renderQuizStarHint();
             }
         }
-        showToast(newState ? '⭐ Đã thêm vào ôn tập' : '☆ Đã bỏ khỏi ôn tập');
     }
 
     // Quiz variables
@@ -50,6 +66,181 @@
         container.appendChild(toast);
         setTimeout(() => toast.remove(), 2100);
     }
+
+    function isTypingTarget(target) {
+        if (!target) return false;
+        const tag = target.tagName?.toLowerCase();
+        return tag === 'input' || tag === 'textarea' || tag === 'select' || target.isContentEditable;
+    }
+
+    function getAvailableVoices() {
+        if (!('speechSynthesis' in window) || !window.speechSynthesis.getVoices) return [];
+        return window.speechSynthesis.getVoices();
+    }
+
+    function getJapaneseVoices() {
+        const voices = getAvailableVoices();
+        const jp = voices.filter(v => (v.lang || '').toLowerCase().startsWith('ja'));
+        return jp.length ? jp : voices;
+    }
+
+    function getSelectedVoice() {
+        const voices = getAvailableVoices();
+        if (selectedVoiceURI && selectedVoiceURI !== 'auto') {
+            const exact = voices.find(v => v.voiceURI === selectedVoiceURI);
+            if (exact) return exact;
+        }
+        return voices.find(v => v.lang === 'ja-JP' && /nanami|haruka|kyoko|keita|ichiro|google|japan|日本/i.test(v.name))
+            || voices.find(v => (v.lang || '').toLowerCase().startsWith('ja'))
+            || null;
+    }
+
+    function populateVoiceSelect() {
+        const select = document.getElementById('voiceSelect');
+        const rateSelect = document.getElementById('voiceRate');
+        if (!select) return;
+        const voices = getJapaneseVoices();
+        const previous = select.value || selectedVoiceURI;
+        select.innerHTML = '<option value="auto">Tự động chọn giọng Nhật tốt nhất</option>';
+        voices.forEach((voice) => {
+            const opt = document.createElement('option');
+            opt.value = voice.voiceURI;
+            opt.textContent = `${voice.name} (${voice.lang || 'unknown'})${voice.localService ? '' : ' online'}`;
+            select.appendChild(opt);
+        });
+        select.value = Array.from(select.options).some(o => o.value === previous) ? previous : selectedVoiceURI;
+        if (!select.value) select.value = 'auto';
+        if (rateSelect) rateSelect.value = String(selectedVoiceRate || 0.9);
+    }
+
+    function makeJapaneseUtterance(text) {
+        const content = String(text || '').trim();
+        if (!content) return null;
+        const utterance = new SpeechSynthesisUtterance(content);
+        utterance.lang = 'ja-JP';
+        utterance.rate = Number(selectedVoiceRate || 0.9);
+        utterance.pitch = 1;
+        const voice = getSelectedVoice();
+        if (voice) utterance.voice = voice;
+        return utterance;
+    }
+
+    function stopSpeech() {
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    }
+
+    function speakJapanese(text) {
+        if (!String(text || '').trim()) return;
+        if (!('speechSynthesis' in window)) {
+            showToast('⚠️ Trình duyệt này chưa hỗ trợ phát âm.');
+            return;
+        }
+        stopSpeech();
+        const utterance = makeJapaneseUtterance(text);
+        if (utterance) window.speechSynthesis.speak(utterance);
+    }
+
+    function splitTextForSpeech(text) {
+        const raw = String(text || '').replace(/\s+/g, ' ').trim();
+        if (!raw) return [];
+        const sentences = raw.match(/[^。！？!?]+[。！？!?]?/g) || [raw];
+        const chunks = [];
+        sentences.forEach(sentence => {
+            const clean = sentence.trim();
+            if (!clean) return;
+            if (clean.length <= 180) {
+                chunks.push(clean);
+                return;
+            }
+            for (let i = 0; i < clean.length; i += 160) {
+                chunks.push(clean.slice(i, i + 160));
+            }
+        });
+        return chunks;
+    }
+
+    function speakArticle() {
+        if (!('speechSynthesis' in window)) {
+            showToast('⚠️ Trình duyệt này chưa hỗ trợ phát âm.');
+            return;
+        }
+        const text = appData?.fullText || '';
+        const chunks = splitTextForSpeech(text);
+        if (!chunks.length) {
+            showToast('⚠️ Chưa có bài đọc để nghe.');
+            return;
+        }
+        stopSpeech();
+        chunks.forEach((chunk, idx) => {
+            const utterance = makeJapaneseUtterance(chunk);
+            if (!utterance) return;
+            if (idx === chunks.length - 1) {
+                utterance.onend = () => showToast('✅ Đã đọc xong bài đọc.');
+            }
+            window.speechSynthesis.speak(utterance);
+        });
+        showToast(`▶ Đang đọc bài đọc (${chunks.length} đoạn)...`);
+    }
+
+    function toggleSpeechPause() {
+        if (!('speechSynthesis' in window)) return;
+        if (window.speechSynthesis.paused) {
+            window.speechSynthesis.resume();
+            showToast('▶ Đọc tiếp.');
+        } else if (window.speechSynthesis.speaking) {
+            window.speechSynthesis.pause();
+            showToast('⏸ Đã tạm dừng.');
+        } else {
+            showToast('⚠️ Chưa có nội dung đang đọc.');
+        }
+    }
+
+    function speakVocabSequence(words) {
+        if (!('speechSynthesis' in window)) {
+            showToast('⚠️ Trình duyệt này chưa hỗ trợ phát âm.');
+            return;
+        }
+        const valid = (words || []).filter(v => v && v.word);
+        if (!valid.length) {
+            showToast('⚠️ Chưa có từ để đọc.');
+            return;
+        }
+        stopSpeech();
+        valid.forEach((v, idx) => {
+            const example = v.example && v.example.length <= 45 ? `。${v.example}` : '';
+            const utterance = makeJapaneseUtterance(`${v.word}${example}`);
+            if (!utterance) return;
+            if (idx === valid.length - 1) utterance.onend = () => showToast('✅ Đã nghe xong danh sách từ.');
+            window.speechSynthesis.speak(utterance);
+        });
+        showToast(`▶ Đang đọc ${valid.length} từ vựng...`);
+    }
+
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.onvoiceschanged = populateVoiceSelect;
+        setTimeout(populateVoiceSelect, 50);
+        setTimeout(populateVoiceSelect, 600);
+    }
+
+    document.getElementById('voiceSelect')?.addEventListener('change', (e) => {
+        selectedVoiceURI = e.target.value || 'auto';
+        localStorage.setItem('jp_selected_voice_uri', selectedVoiceURI);
+        showToast('✅ Đã đổi giọng đọc.');
+    });
+    document.getElementById('voiceRate')?.addEventListener('change', (e) => {
+        selectedVoiceRate = Number(e.target.value || 0.9);
+        localStorage.setItem('jp_voice_rate', String(selectedVoiceRate));
+        showToast('✅ Đã đổi tốc độ đọc.');
+    });
+    document.getElementById('btnStopSpeech')?.addEventListener('click', stopSpeech);
+    document.getElementById('btnStopVocabSpeech')?.addEventListener('click', stopSpeech);
+    document.getElementById('btnStopArticle')?.addEventListener('click', stopSpeech);
+    document.getElementById('btnPauseArticle')?.addEventListener('click', toggleSpeechPause);
+    document.getElementById('btnSpeakArticle')?.addEventListener('click', speakArticle);
+    document.getElementById('btnSpeakAllVocab')?.addEventListener('click', () => {
+        const words = getFilteredVocab();
+        speakVocabSequence(words);
+    });
 
     function getEasyExample(wordObj, type = 'vocab') {
         if (type === 'vocab') {
@@ -111,6 +302,7 @@
         else if (subName === 'quiz') updateQuizUI();
         else if (subName === 'vocab') renderVocabList();
         else if (subName === 'grammar') renderGrammarList();
+        else if (subName === 'translation') renderTranslation();
         // sub-read không cần render gì thêm
     }
 
@@ -150,20 +342,52 @@
     document.getElementById('btnGeneratePrompt')?.addEventListener('click', () => {
         const text = document.getElementById('inputText')?.value.trim();
         if (!text) { showToast('⚠️ Nhập nội dung bài đọc.'); return; }
-        const prompt = `Bạn là trợ lý dạy tiếng Nhật. Hãy phân tích đoạn văn sau và trả về **chính xác** một đối tượng JSON (không markdown, không văn bản thừa) theo cấu trúc:
+        const prompt = `Bạn là trợ lý dạy tiếng Nhật cho người Việt đang học JLPT N2. Hãy phân tích đoạn văn sau và trả về **chính xác một đối tượng JSON thuần**. Không dùng markdown, không giải thích ngoài JSON.
 
+Cấu trúc bắt buộc:
 {
-  "title": "Tiêu đề phù hợp (tiếng Việt)",
-  "fullText": "toàn bộ đoạn văn gốc (giữ nguyên)",
+  "title": "Tiêu đề phù hợp bằng tiếng Việt",
+  "fullText": "Toàn bộ đoạn văn gốc, giữ nguyên xuống dòng",
+  "fullTranslation": "Bản dịch tiếng Việt tự nhiên, sát nghĩa toàn bài",
+  "sentenceTranslations": [
+    { "jp": "Một câu tiếng Nhật gốc", "vi": "Dịch tiếng Việt của câu đó" }
+  ],
   "vocabulary": [
-    { "word": "...", "reading": "...", "meaning": "...", "jlpt": "...", "example": "..." }
+    {
+      "word": "Từ hoặc cụm từ tiếng Nhật ở dạng thường gặp/từ điển",
+      "reading": "Cách đọc bằng hiragana/katakana",
+      "meaning": "Nghĩa tiếng Việt sát ngữ cảnh",
+      "jlpt": "N5/N4/N3/N2/N1 hoặc ngoài JLPT",
+      "type": "danh từ/động từ/tính từ/trạng từ/cụm từ...",
+      "importance": "high/medium/low",
+      "example": "Câu ví dụ ngắn bằng tiếng Nhật",
+      "exampleMeaning": "Dịch câu ví dụ sang tiếng Việt"
+    }
   ],
   "grammar": [
-    { "pattern": "...", "meaning": "...", "example": "...", "note": "..." }
+    {
+      "pattern": "Mẫu ngữ pháp",
+      "meaning": "Ý nghĩa bằng tiếng Việt",
+      "usage": "Cách dùng thật ngắn",
+      "example": "Câu ví dụ tiếng Nhật",
+      "exampleMeaning": "Dịch câu ví dụ",
+      "note": "Lưu ý/ngữ cảnh nếu có"
+    }
   ]
 }
 
-Yêu cầu: liệt kê tất cả từ vựng, nghĩa sát ngữ cảnh, chỉ trả về JSON thuần.
+Yêu cầu quan trọng:
+- Lấy NHIỀU từ vựng hơn bình thường: ưu tiên 40–80 mục nếu đoạn đủ dài.
+- Với mỗi từ vựng, bắt buộc thêm importance:
+  + high = từ quan trọng, nên học trước để hiểu bài/N2-N3 hữu ích.
+  + medium = từ thường gặp, nên biết để đọc tốt hơn.
+  + low = từ phụ/biết thêm, tên riêng hoặc từ ít ưu tiên hơn.
+- Không chỉ lấy từ khó; hãy lấy cả từ hay gặp, cụm động từ, cụm danh từ, trạng từ, liên từ hữu ích.
+- Không lặp cùng một từ. Nếu có chia thể, đưa về dạng từ điển nhưng nghĩa phải sát ngữ cảnh.
+- Ưu tiên từ N2/N3, nhưng vẫn giữ N4/N5 nếu từ đó cần để hiểu bài.
+- Không tách trợ từ đơn lẻ như は, が, を trừ khi có điểm ngữ pháp đặc biệt.
+- Ví dụ phải ngắn, dễ hiểu, đúng với nghĩa trong bài.
+- Bản dịch tiếng Việt cần tự nhiên, không dịch word-by-word quá cứng.
 
 Đoạn văn:
 """
@@ -214,15 +438,25 @@ ${text}
         finally { this.textContent = '🌐 Tải'; this.disabled = false; }
     });
 
+    function normalizeLessonData(json) {
+        const data = { ...json };
+        data.fullTranslation = data.fullTranslation || data.translation || data.viTranslation || data.vietnameseTranslation || '';
+        data.sentenceTranslations = data.sentenceTranslations || data.translations || data.sentences || [];
+        if (!Array.isArray(data.sentenceTranslations)) data.sentenceTranslations = [];
+        data.vocabulary = Array.isArray(data.vocabulary) ? data.vocabulary : [];
+        data.grammar = Array.isArray(data.grammar) ? data.grammar : [];
+        return data;
+    }
+
     // LOAD JSON
     function loadFromJSON(json) {
         if (!json.fullText || !json.vocabulary) {
             alert('JSON không hợp lệ: thiếu fullText hoặc vocabulary');
             return;
         }
-        appData = json;
-        vocabList = json.vocabulary || [];
-        grammarList = json.grammar || [];
+        appData = normalizeLessonData(json);
+        vocabList = appData.vocabulary || [];
+        grammarList = appData.grammar || [];
         for (let k in vocabMap) delete vocabMap[k];
         for (const v of vocabList) {
             vocabMap[v.word] = v;
@@ -289,8 +523,8 @@ ${text}
     }
 
     function escapeHtml(str) {
-        if (!str) return '';
-        return str.replace(/[&<>]/g, function(m) {
+        if (str === null || str === undefined) return '';
+        return String(str).replace(/[&<>]/g, function(m) {
             if (m === '&') return '&amp;';
             if (m === '<') return '&lt;';
             if (m === '>') return '&gt;';
@@ -298,10 +532,15 @@ ${text}
         });
     }
 
+    function escapeAttr(str) {
+        return escapeHtml(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
     function updateAllUI() {
         renderArticle();
         renderVocabList();
         renderGrammarList();
+        renderTranslation();
         updateCounts();
         updateFlashcardUI();
         updateQuizUI();
@@ -323,8 +562,9 @@ ${text}
         if(!sorted.length){ container.textContent = appData.fullText; return; }
         const escaped = sorted.map(w=>w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
         const regex = new RegExp(`(${escaped.join('|')})`, 'g');
-        container.innerHTML = appData.fullText.replace(regex, (match) => {
-            if(vocabMap[match]) return `<span class="word" data-word="${match}">${match}</span>`;
+        const safeText = escapeHtml(appData.fullText);
+        container.innerHTML = safeText.replace(regex, (match) => {
+            if(vocabMap[match]) return `<span class="word" data-word="${escapeAttr(match)}">${escapeHtml(match)}</span>`;
             return match;
         });
         container.querySelectorAll('span.word').forEach(span => span.addEventListener('click', (e) => {
@@ -339,43 +579,123 @@ ${text}
         const tip = document.getElementById('wordTooltip');
         if (!tip) return;
         tip.innerHTML = `
-            <div class="jp">${escapeHtml(vocab.word)}</div>
-            <div class="reading">${escapeHtml(vocab.reading || '')}</div>
+            <div class="tooltip-head">
+                <div>
+                    <div class="jp">${escapeHtml(vocab.word)}</div>
+                    <div class="reading">${escapeHtml(vocab.reading || '')}</div>
+                </div>
+                <button class="sound-btn tooltip-speak" type="button" title="Phát âm">🔊</button>
+            </div>
             <div class="meaning">${escapeHtml(vocab.meaning || '')}</div>
             ${vocab.example ? `<div class="example">📖 ${escapeHtml(vocab.example)}</div>` : ''}
-            ${vocab.jlpt ? `<span class="tag" style="margin-top:4px;">${vocab.jlpt}</span>` : ''}
+            ${vocab.exampleMeaning ? `<div class="example-meaning">${escapeHtml(vocab.exampleMeaning)}</div>` : ''}
+            <div class="tag-row">
+                ${vocab.jlpt ? `<span class="tag">${escapeHtml(vocab.jlpt)}</span>` : ''}
+                ${vocab.type ? `<span class="tag tag-soft">${escapeHtml(vocab.type)}</span>` : ''}
+            </div>
         `;
+        tip.querySelector('.tooltip-speak')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            speakJapanese(vocab.word);
+        });
         tip.style.left = Math.min(event.clientX+10, window.innerWidth-340)+'px';
         tip.style.top = Math.max(event.clientY-40, 10)+'px';
         tip.style.display = 'block';
     }
 
+    function getImportanceKey(vocab) {
+        const raw = String(vocab?.importance || vocab?.priority || vocab?.level || '').trim().toLowerCase();
+        if (['high', 'important', 'quan trọng', 'qtrong', '1', 'must'].includes(raw)) return 'high';
+        if (['medium', 'common', 'thường gặp', 'thuong gap', '2', 'normal'].includes(raw)) return 'medium';
+        if (['low', 'extra', 'phụ', 'phu', '3', 'optional'].includes(raw)) return 'low';
+        const jlpt = String(vocab?.jlpt || '').toUpperCase();
+        if (jlpt === 'N2' || jlpt === 'N1' || jlpt === 'N3') return 'high';
+        if (jlpt === 'N4' || jlpt === 'N5') return 'medium';
+        return 'low';
+    }
+
+    function getImportanceMeta(key) {
+        if (key === 'high') return { label: 'Quan trọng', icon: '🔥', className: 'importance-high' };
+        if (key === 'medium') return { label: 'Thường gặp', icon: '🌱', className: 'importance-medium' };
+        return { label: 'Phụ / biết thêm', icon: '📌', className: 'importance-low' };
+    }
+
+    function groupVocabByImportance(items) {
+        return {
+            high: items.filter(v => getImportanceKey(v) === 'high'),
+            medium: items.filter(v => getImportanceKey(v) === 'medium'),
+            low: items.filter(v => getImportanceKey(v) === 'low')
+        };
+    }
+
     function renderVocabList() {
         const list = document.getElementById('vocabList'), empty = document.getElementById('vocabEmpty');
+        const summary = document.getElementById('vocabGroupSummary');
         if (!list || !empty) return;
-        const filtered = applyJLPTFilter(); // vừa lọc vừa cập nhật số lượng
-        if(filtered.length===0){ list.innerHTML=''; empty.style.display='block'; return; }
+        const filtered = applyJLPTFilter();
+        if(filtered.length===0){
+            list.innerHTML='';
+            if (summary) summary.innerHTML = '';
+            empty.style.display='block';
+            return;
+        }
         empty.style.display='none';
-        list.innerHTML = filtered.map(v => {
-            const starred = v.starred ? 'starred' : '';
-            const starChar = v.starred ? '★' : '☆';
-            return `<li class="card">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div><span class="jp">${escapeHtml(v.word)}</span><span class="reading">${escapeHtml(v.reading||'')}</span></div>
-                    <span class="star-icon-list ${starred}" data-word="${escapeHtml(v.word)}" style="cursor:pointer; font-size:22px;">${starChar}</span>
-                </div>
-                <div>${escapeHtml(v.meaning||'')}</div>
-                ${v.jlpt?`<span class="tag">${v.jlpt}</span>`:''}
-                <div style="font-size:0.85rem; color:var(--sub); margin-top:6px;">📖 ${escapeHtml(getEasyExample(v, 'vocab'))}</div>
+        const groups = groupVocabByImportance(filtered);
+        if (summary) {
+            summary.innerHTML = `
+                <span>🔥 Quan trọng: <strong>${groups.high.length}</strong></span>
+                <span>🌱 Thường gặp: <strong>${groups.medium.length}</strong></span>
+                <span>📌 Phụ: <strong>${groups.low.length}</strong></span>
+            `;
+        }
+        list.innerHTML = ['high', 'medium', 'low'].map(key => {
+            const items = groups[key];
+            if (!items.length) return '';
+            const meta = getImportanceMeta(key);
+            const itemHtml = items.map((v, idx) => {
+                const starred = v.starred ? 'starred' : '';
+                const starChar = v.starred ? '★' : '☆';
+                const example = getEasyExample(v, 'vocab');
+                return `<li class="vocab-row ${meta.className}">
+                    <div class="vocab-row-no">${idx + 1}</div>
+                    <div class="vocab-row-word">
+                        <button class="sound-btn vocab-speak" type="button" data-speak="${escapeAttr(v.word)}" title="Phát âm">🔊</button>
+                        <div class="vocab-main">
+                            <div><span class="jp">${escapeHtml(v.word)}</span></div>
+                            <div class="reading">${escapeHtml(v.reading||'')}</div>
+                        </div>
+                    </div>
+                    <div class="vocab-row-meaning">${escapeHtml(v.meaning||'')}</div>
+                    <div class="vocab-row-tags">
+                        ${v.jlpt?`<span class="tag">${escapeHtml(v.jlpt)}</span>`:''}
+                        ${v.type?`<span class="tag tag-soft">${escapeHtml(v.type)}</span>`:''}
+                    </div>
+                    <div class="vocab-row-example">
+                        <div>📖 ${escapeHtml(example)}</div>
+                        ${v.exampleMeaning ? `<div class="example-meaning">${escapeHtml(v.exampleMeaning)}</div>` : ''}
+                    </div>
+                    <div class="vocab-row-star">
+                        <span class="star-icon-list ${starred}" data-word="${escapeAttr(v.word)}" title="Lưu để ôn">${starChar}</span>
+                    </div>
+                </li>`;
+            }).join('');
+            return `<li class="vocab-group-wrap">
+                <div class="vocab-group-title ${meta.className}">${meta.icon} ${meta.label} <span>${items.length} từ</span></div>
+                <ol class="vocab-horizontal-list">${itemHtml}</ol>
             </li>`;
         }).join('');
-        // Gắn sự kiện click cho từng sao
-        document.querySelectorAll('.star-icon-list').forEach(el => {
+        list.querySelectorAll('.star-icon-list').forEach(el => {
             const word = el.dataset.word;
             el.addEventListener('click', (e) => {
                 e.stopPropagation();
                 toggleStar(word);
-                renderVocabList(); // refresh lại danh sách
+                renderVocabList();
+            });
+        });
+        list.querySelectorAll('.vocab-speak').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                speakJapanese(btn.dataset.speak);
             });
         });
     }
@@ -385,12 +705,56 @@ ${text}
         if (!list || !empty) return;
         if(grammarList.length===0){ list.innerHTML=''; empty.style.display='block'; return; }
         empty.style.display='none';
-        list.innerHTML = grammarList.map(g=>`<li class="card">
-            <div class="jp">${escapeHtml(g.pattern)}</div>
-            <div>${escapeHtml(g.meaning)}</div>
-            ${g.example?`<div>📖 ${escapeHtml(g.example)}</div>`:`<div style="font-size:0.85rem; color:var(--sub);">📖 ${escapeHtml(getEasyExample(g, 'grammar'))}</div>`}
-            ${g.note?`<div style="font-size:0.8rem;">💡 ${escapeHtml(g.note)}</div>`:''}
+        list.innerHTML = grammarList.map((g, idx)=>`<li class="card grammar-card">
+            <div class="grammar-index">${idx + 1}</div>
+            <div class="grammar-body">
+                <div class="jp grammar-pattern">${escapeHtml(g.pattern)}</div>
+                <div class="grammar-meaning">${escapeHtml(g.meaning)}</div>
+                ${g.usage ? `<div class="grammar-usage">🧩 ${escapeHtml(g.usage)}</div>` : ''}
+                ${g.example?`<div class="grammar-example">📖 ${escapeHtml(g.example)}</div>`:`<div class="grammar-example">📖 ${escapeHtml(getEasyExample(g, 'grammar'))}</div>`}
+                ${g.exampleMeaning?`<div class="example-meaning">${escapeHtml(g.exampleMeaning)}</div>`:''}
+                ${g.note?`<div class="grammar-note">💡 ${escapeHtml(g.note)}</div>`:''}
+            </div>
         </li>`).join('');
+    }
+
+    function renderTranslation() {
+        const container = document.getElementById('translationContent');
+        if (!container) return;
+        if (!appData) {
+            container.innerHTML = '<div class="empty">Chưa có dữ liệu bài dịch.</div>';
+            return;
+        }
+        const fullTranslation = appData.fullTranslation || appData.translation || appData.viTranslation || appData.vietnameseTranslation || '';
+        const sentenceTranslations = Array.isArray(appData.sentenceTranslations) ? appData.sentenceTranslations : [];
+        if (!fullTranslation && sentenceTranslations.length === 0) {
+            container.innerHTML = `
+                <div class="empty">Chưa có bài dịch. Hãy tạo lại prompt mới ở tab Nhập liệu & Prompt để AI trả thêm <strong>fullTranslation</strong> và <strong>sentenceTranslations</strong>.</div>
+            `;
+            return;
+        }
+        const sentenceHtml = sentenceTranslations.map((item, idx) => {
+            const jp = item.jp || item.sentence || item.text || item.japanese || '';
+            const vi = item.vi || item.translation || item.meaning || item.vietnamese || '';
+            return `<div class="translation-pair">
+                <div class="translation-num">${idx + 1}</div>
+                <div class="translation-jp-col">
+                    <div class="pair-label">日本語</div>
+                    <div class="translation-jp">${escapeHtml(jp)}</div>
+                </div>
+                <div class="translation-vi-col">
+                    <div class="pair-label">Tiếng Việt</div>
+                    <div class="translation-vi">${escapeHtml(vi)}</div>
+                </div>
+            </div>`;
+        }).join('');
+        container.innerHTML = `
+            ${fullTranslation ? `<div class="translation-full card-box"><h3>🌏 Dịch toàn bài</h3><p>${escapeHtml(fullTranslation)}</p></div>` : ''}
+            ${sentenceHtml ? `<div class="translation-list"><div class="translation-list-head"><h3>🔎 Song ngữ từng câu</h3><button class="btn btn-small btn-outline" id="btnToggleSentenceVi">Ẩn/hiện dịch Việt</button></div>${sentenceHtml}</div>` : ''}
+        `;
+        container.querySelector('#btnToggleSentenceVi')?.addEventListener('click', () => {
+            container.querySelector('.translation-list')?.classList.toggle('hide-vi');
+        });
     }
 
     // FLASHCARD
@@ -424,6 +788,9 @@ ${text}
         if (fcIndex >= filtered.length) fcIndex = 0;
         const v = filtered[fcIndex];
         fcWord.textContent = v.word;
+        fcWord.title = 'Bấm để nghe phát âm';
+        fcWord.onclick = () => speakJapanese(v.word);
+        fcWord.classList.add('clickable-sound');
         fcReading.textContent = v.reading || '';
         fcMeaning.textContent = v.meaning || '';
         fcProgress.textContent = `${fcIndex+1}/${filtered.length}`;
@@ -464,6 +831,10 @@ ${text}
         if (f.length) { fcIndex = (fcIndex + 1) % f.length; updateFlashcardUI(); }
     });
     document.getElementById('btnToggleMeaning')?.addEventListener('click', toggleMeaning);
+    document.getElementById('btnSpeakCard')?.addEventListener('click', () => {
+        const filtered = getFilteredVocab();
+        if (filtered.length && filtered[fcIndex]) speakJapanese(filtered[fcIndex].word);
+    });
 
     // Focus Mode
     function enableFocusMode() {
@@ -483,6 +854,10 @@ ${text}
             disableFocusMode();
         }
     });
+
+    function renderQuizStarHint() {
+        // Giữ quiz hiện tại không bị reset khi sao được cập nhật ở panel khác.
+    }
 
     // QUIZ
     function updateQuizUI() {
@@ -518,6 +893,8 @@ ${text}
         }
         const currentWord = quizWords[quizCurrentIndex];
         document.getElementById('quizWord').textContent = currentWord.word;
+        const quizReading = document.getElementById('quizReading');
+        if (quizReading) quizReading.textContent = currentWord.reading ? `【${currentWord.reading}】` : '';
         
         const allVocab = getFilteredVocab();
         const otherWords = allVocab.filter(w => w.word !== currentWord.word);
@@ -534,47 +911,62 @@ ${text}
         
         const optsDiv = document.getElementById('quizOptions');
         optsDiv.innerHTML = options.map((opt, idx) => `
-            <div class="quiz-option" data-word="${escapeHtml(opt.word)}">
+            <div class="quiz-option" data-word="${escapeAttr(opt.word)}" data-index="${idx}">
                 <span class="option-number">${idx+1}.</span> ${escapeHtml(opt.meaning || '(chưa có nghĩa)')}
             </div>
         `).join('');
         
-        document.querySelectorAll('.quiz-option').forEach(opt => {
+        optsDiv.querySelectorAll('.quiz-option').forEach(opt => {
             opt.classList.remove('correct', 'wrong', 'disabled');
             opt.style.pointerEvents = 'auto';
-            opt.addEventListener('click', function handler() {
-                if (this.classList.contains('disabled')) return;
-                const selectedWord = this.dataset.word;
-                const isCorrect = (selectedWord === currentWord.word);
-                quizAnswers[quizCurrentIndex] = isCorrect;
-                if (isCorrect) {
-                    this.classList.add('correct');
-                    document.getElementById('quizResult').innerHTML = '✅ Chính xác!';
-                } else {
-                    this.classList.add('wrong');
-                    document.getElementById('quizResult').innerHTML = `❌ Sai rồi! Đáp án đúng là: ${escapeHtml(currentWord.meaning)}`;
-                    document.querySelectorAll('.quiz-option').forEach(opt2 => {
-                        if (opt2.dataset.word === currentWord.word) opt2.classList.add('correct');
-                    });
-                }
-                document.querySelectorAll('.quiz-option').forEach(opt2 => {
-                    opt2.classList.add('disabled');
-                    opt2.style.pointerEvents = 'none';
-                });
-                const percent = ((quizCurrentIndex + 1) / quizWords.length) * 100;
-                const progressBar = document.getElementById('quizProgressBar');
-                const progressText = document.getElementById('quizProgressText');
-                if (progressBar) progressBar.style.width = `${percent}%`;
-                if (progressText) progressText.textContent = `${quizCurrentIndex+1}/${quizWords.length}`;
-            });
+            opt.addEventListener('click', () => answerQuizOption(opt));
         });
         document.getElementById('quizResult').innerHTML = '';
     }
 
+    function answerQuizOption(optionEl) {
+        if (!optionEl || optionEl.classList.contains('disabled')) return;
+        const currentWord = quizWords[quizCurrentIndex];
+        if (!currentWord) return;
+        const selectedWord = optionEl.dataset.word;
+        const isCorrect = (selectedWord === currentWord.word);
+        quizAnswers[quizCurrentIndex] = isCorrect;
+        if (isCorrect) {
+            optionEl.classList.add('correct');
+            document.getElementById('quizResult').innerHTML = '✅ Chính xác! Nhấn Enter hoặc Space để qua câu tiếp.';
+        } else {
+            optionEl.classList.add('wrong');
+            const wasStarred = !!starredMap[currentWord.word];
+            setStar(currentWord.word, true, { silent: true, refresh: false });
+            document.getElementById('quizResult').innerHTML = `❌ Sai rồi! Đáp án đúng là: ${escapeHtml(currentWord.meaning)}<br><span class="auto-star-note">⭐ ${wasStarred ? 'Từ này đã nằm trong ôn tập.' : 'Đã tự thêm từ này vào ôn tập.'}</span>`;
+            document.querySelectorAll('.quiz-option').forEach(opt2 => {
+                if (opt2.dataset.word === currentWord.word) opt2.classList.add('correct');
+            });
+        }
+        document.querySelectorAll('.quiz-option').forEach(opt2 => {
+            opt2.classList.add('disabled');
+            opt2.style.pointerEvents = 'none';
+        });
+        const percent = ((quizCurrentIndex + 1) / quizWords.length) * 100;
+        const progressBar = document.getElementById('quizProgressBar');
+        const progressText = document.getElementById('quizProgressText');
+        if (progressBar) progressBar.style.width = `${percent}%`;
+        if (progressText) progressText.textContent = `${quizCurrentIndex+1}/${quizWords.length}`;
+    }
+
+    function selectQuizOption(index) {
+        const options = document.querySelectorAll('.quiz-option');
+        const option = options[index];
+        if (option) answerQuizOption(option);
+    }
+
+    function isQuizAnswered() {
+        return Array.from(document.querySelectorAll('.quiz-option')).some(opt => opt.classList.contains('correct') || opt.classList.contains('wrong'));
+    }
+
     function nextQuizQuestion() {
         if (quizCurrentIndex < quizWords.length) {
-            const answered = Array.from(document.querySelectorAll('.quiz-option')).some(opt => opt.classList.contains('correct') || opt.classList.contains('wrong'));
-            if (!answered) {
+            if (!isQuizAnswered()) {
                 showToast('⚠️ Hãy chọn đáp án trước khi sang câu tiếp!');
                 return;
             }
@@ -617,10 +1009,12 @@ ${text}
 
     // PHÍM TẮT
     document.addEventListener('keydown', (e) => {
+        if (isTypingTarget(e.target)) return;
         const activeMain = document.querySelector('.main-panel.active');
         if (!activeMain || activeMain.id !== 'panel-learn') return;
         const activeSub = document.querySelector('.sub-panel.active');
         if (!activeSub) return;
+        const isSpace = e.key === ' ' || e.code === 'Space';
         
         if (activeSub.id === 'sub-flashcard') {
             const filtered = getFilteredVocab();
@@ -633,15 +1027,17 @@ ${text}
                 e.preventDefault();
                 fcIndex = (fcIndex + 1) % filtered.length;
                 updateFlashcardUI();
-            } else if (e.key === ' ' || e.key === 'Space') {
+            } else if (isSpace) {
                 e.preventDefault();
                 toggleMeaning();
             }
         } else if (activeSub.id === 'sub-quiz') {
             const quizArea = document.getElementById('quizArea');
-            const quizSummary = document.getElementById('quizSummary');
             if (quizArea && quizArea.style.display === 'block') {
-                if (e.key === ' ' || e.key === 'Space' || e.key === 'ArrowRight') {
+                if (['1','2','3','4'].includes(e.key)) {
+                    e.preventDefault();
+                    selectQuizOption(Number(e.key) - 1);
+                } else if (e.key === 'Enter' || isSpace || e.key === 'ArrowRight') {
                     e.preventDefault();
                     nextQuizQuestion();
                 }
@@ -667,12 +1063,16 @@ Hãy bắt đầu bằng cách:
 4️⃣ Dán JSON vào tab "Dán JSON & Học" và nhấn "Xử lý & Học"
 
 ✨ Sau khi tải dữ liệu, bạn có thể:
-- Học từ vựng và ngữ pháp
+- Học từ vựng chia nhóm Quan trọng / Thường gặp / Phụ
 - Ôn tập với Flashcard (phím ← → và Space)
-- Làm bài tập Quiz (phím 1-4 và Space/→)
+- Làm bài tập Quiz (sai tự lưu ⭐, có cách đọc dưới từ hỏi)
+- Xem Bài dịch song ngữ từng câu
+- Chọn giọng đọc và nghe toàn bộ từ vựng bằng nút ▶
 - Lọc theo cấp độ JLPT hoặc chỉ xem từ đã đánh dấu sao ⭐
 
 Chúc bạn học tốt! 🎌`,
+                fullTranslation: '',
+                sentenceTranslations: [],
                 vocabulary: [],
                 grammar: [],
                 title: 'Hướng dẫn sử dụng'

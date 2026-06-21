@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Học tiếng Nhật qua AI - Focus & Ôn tập sao</title>
+    <title>Học cùng tôi v2.42 - Song ngữ & nghe từ vựng</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="container">
     <h1>📖 Học cùng tôi</h1>
-    <p class="subtitle">Tab ngang – Tự động lưu – Phím tắt – Lọc JLPT – ⭐ Ôn tập</p>
+    <p class="subtitle">Song ngữ từng câu – Nhóm từ vựng – Quiz tự lưu sai – Chọn giọng đọc</p>
 
     <div class="main-tabs">
         <button class="main-tab active" data-tab="prompt">1. Nhập liệu & Prompt</button>
@@ -43,8 +43,12 @@
 {
   "title": "Bài học số 1",
   "fullText": "わたしは がくせい です。",
+  "fullTranslation": "Tôi là học sinh.",
+  "sentenceTranslations": [
+    {"jp": "わたしは がくせい です。", "vi": "Tôi là học sinh."}
+  ],
   "vocabulary": [
-    {"word": "わたし", "reading": "watashi", "meaning": "tôi", "jlpt": "N5", "example": ""}
+    {"word": "わたし", "reading": "わたし", "meaning": "tôi", "jlpt": "N5", "type": "đại từ", "importance": "high", "example": "わたしは学生です。", "exampleMeaning": "Tôi là học sinh."}
   ],
   "grammar": []
 }'></textarea>
@@ -67,16 +71,43 @@
             </select>
             <span id="filteredCount" style="font-size:0.9rem; color:var(--sub);"></span>
         </div>
+        <div class="voice-bar" id="voiceBar">
+            <label><strong>🔊 Giọng đọc:</strong></label>
+            <select id="voiceSelect">
+                <option value="auto">Tự động chọn giọng Nhật tốt nhất</option>
+            </select>
+            <select id="voiceRate" title="Tốc độ đọc">
+                <option value="0.75">Chậm</option>
+                <option value="0.9" selected>Vừa</option>
+                <option value="1.05">Nhanh</option>
+            </select>
+            <button class="btn btn-small btn-outline" id="btnStopSpeech">⏹ Dừng đọc</button>
+        </div>
         <div class="sub-tabs">
             <button class="sub-tab active" data-sub="read">📰 Bài đọc</button>
             <button class="sub-tab" data-sub="vocab">📝 Từ vựng (<span id="vocabCount">0</span>)</button>
             <button class="sub-tab" data-sub="grammar">📚 Ngữ pháp (<span id="grammarCount">0</span>)</button>
             <button class="sub-tab" data-sub="flashcard">🃏 Flashcard</button>
             <button class="sub-tab" data-sub="quiz">❓ Quiz</button>
+            <button class="sub-tab" data-sub="translation">🌏 Bài dịch</button>
         </div>
 
-        <div class="sub-panel active" id="sub-read"><div class="article-content" id="articleContent"></div></div>
+        <div class="sub-panel active" id="sub-read">
+            <div class="article-toolbar">
+                <button class="btn btn-primary" id="btnSpeakArticle">▶ Đọc cả bài đọc</button>
+                <button class="btn btn-outline" id="btnPauseArticle">⏸ Tạm dừng / đọc tiếp</button>
+                <button class="btn btn-outline" id="btnStopArticle">⏹ Dừng</button>
+                <span class="toolbar-note">Dùng giọng và tốc độ đang chọn ở thanh Giọng đọc</span>
+            </div>
+            <div class="article-content" id="articleContent"></div>
+        </div>
         <div class="sub-panel" id="sub-vocab">
+            <div class="vocab-toolbar">
+                <button class="btn btn-primary" id="btnSpeakAllVocab">▶ Nghe toàn bộ từ vựng</button>
+                <button class="btn btn-outline" id="btnStopVocabSpeech">⏹ Dừng</button>
+                <span class="toolbar-note">Danh sách chia theo: Quan trọng / Thường gặp / Phụ</span>
+            </div>
+            <div id="vocabGroupSummary" class="group-summary"></div>
             <ul class="list-container" id="vocabList"></ul>
             <div class="empty" id="vocabEmpty">Chưa có từ vựng.</div>
         </div>
@@ -98,6 +129,7 @@
             <div style="text-align:center; margin-top:10px;">
                 <button class="btn btn-small" id="btnPrevCard">◀</button>
                 <button class="btn btn-small" id="btnToggleMeaning">🔁 Hiện nghĩa</button>
+                <button class="btn btn-small" id="btnSpeakCard">🔊 Nghe</button>
                 <button class="btn btn-small" id="btnNextCard">▶</button>
                 <span id="fcProgress"></span>
                 <button class="btn btn-small" id="btnFocusMode">🧘 Focus</button>
@@ -116,15 +148,19 @@
                     <div id="quizProgressText" style="text-align:center; font-size:0.8rem;">0/0</div>
                 </div>
                 <div class="quiz-word" id="quizWord"></div>
+                <div class="quiz-reading" id="quizReading"></div>
                 <div class="quiz-options" id="quizOptions"></div>
                 <div class="quiz-result" id="quizResult"></div>
                 <div style="text-align:center;">
-                    <button class="btn btn-small" id="btnNextQuiz">▶ Câu tiếp (Space/→)</button>
+                    <button class="btn btn-small" id="btnNextQuiz">▶ Câu tiếp (Enter/Space)</button>
                 </div>
             </div>
             <div id="quizSummary" style="display:none;"></div>
             <div class="empty" id="quizEmpty">Cần ít nhất 4 từ vựng để làm quiz.</div>
-            <p class="shortcut-hint">⌨️ 1-4 chọn đáp án, Space/→ sang câu tiếp</p>
+            <p class="shortcut-hint">⌨️ 1-4 chọn đáp án, Enter/Space/→ sang câu tiếp. Sai tự lưu ⭐</p>
+        </div>
+        <div class="sub-panel" id="sub-translation">
+            <div class="translation-content" id="translationContent"></div>
         </div>
     </div>
 
